@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><title>대시보드</title>
+<link rel="stylesheet" href="style.css">
+<script src="chart.umd.js"></script></head>
+<body>
+<nav><b>스마트팜 환경 관리</b><a href="index.html" class="on">대시보드</a><a href="chat.html">AI 챗봇</a><a href="settings.html">제어 · 설정</a><a href="history.html">이력 조회</a><span id="mode"></span></nav>
+<main>
+  <h2>토마토 재배실 현황 <span class="small" id="time"></span></h2>
+  <div class="grid" id="cards"></div>
+  <div class="row">
+    <div class="card" style="flex:1.5"><h3>최근 1시간 변화</h3><canvas id="chart" height="120"></canvas></div>
+    <div class="card">
+      <h3>장치 상태</h3><table id="devices"></table>
+      <h3 style="margin-top:16px">최근 경고 · 알림</h3><table id="alerts"></table>
+    </div>
+  </div>
+</main>
+<script>
+const NAMES = { FAN: "환기팬", HEATER: "히터", PUMP: "급수펌프", LED: "LED 보광등" };
+const LEVEL = { NORMAL: "정상", CAUTION: "주의", WARNING: "경고", RECOVER: "정상 복귀" };
+let chart;
+
+async function load() {
+  // 1) 최신 센서값 · 상태 · 장치
+  const d = await (await fetch("/api/sensors/latest")).json();
+  document.getElementById("mode").textContent = d.mode === "AUTO" ? "자동 제어 ON" : "수동 모드";
+  if (!d.sensor) return;
+  document.getElementById("time").textContent = "마지막 측정 " + d.sensor.measured_at;
+
+  let html = "";
+  for (const key in d.thresholds) {
+    const th = d.thresholds[key], st = d.status[key];
+    html += `<div class="card ${st}"><h3>${th.sensor_name} <span class="badge ${st}">${LEVEL[st]}</span></h3>
+      <div class="big">${d.sensor[key]} <span class="small">${th.unit}</span></div>
+      <div class="small">적정 ${th.min_value} ~ ${th.max_value}${th.unit}</div></div>`;
+  }
+  document.getElementById("cards").innerHTML = html;
+
+  html = "";
+  for (const id in d.devices) {
+    const on = d.devices[id], r = d.reasons[id];
+    html += `<tr><td>${NAMES[id]}</td><td class="${on ? "on" : "off"}">${on ? "ON" : "OFF"}</td>
+      <td class="small">${r ? r.reason : ""}</td></tr>`;
+  }
+  document.getElementById("devices").innerHTML = html;
+
+  // 2) 최근 경고 3개
+  const alerts = await (await fetch("/api/alerts?limit=3")).json();
+  document.getElementById("alerts").innerHTML = alerts.map(a =>
+    `<tr><td><span class="badge ${a.level}">${LEVEL[a.level]}</span></td><td>${a.message}</td>
+     <td class="small">${a.created_at.slice(11, 16)}</td></tr>`).join("");
+
+  // 3) 최근 1시간 그래프
+  const recent = await (await fetch("/api/sensors/recent?minutes=60")).json();
+  const labels = recent.map(r => r.measured_at.slice(11, 19));
+  const temp = recent.map(r => r.temperature), soil = recent.map(r => r.soil_moisture);
+  if (!chart) {
+    chart = new Chart(document.getElementById("chart"), {
+      type: "line",
+      data: { labels, datasets: [
+        { label: "온도(℃)", data: temp, borderColor: "#e0602f", pointRadius: 0 },
+        { label: "토양 수분(%)", data: soil, borderColor: "#2f80c0", pointRadius: 0 } ] },
+      options: { animation: false }
+    });
+  } else {
+    chart.data.labels = labels;
+    chart.data.datasets[0].data = temp;
+    chart.data.datasets[1].data = soil;
+    chart.update();
+  }
+}
+
+load();
+setInterval(load, 5000);   // 5초마다 새로고침
+</script>
+</body></html>

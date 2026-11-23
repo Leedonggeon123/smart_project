@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><title>제어 · 설정</title>
+<link rel="stylesheet" href="style.css"></head>
+<body>
+<nav><b>스마트팜 환경 관리</b><a href="index.html">대시보드</a><a href="chat.html">AI 챗봇</a><a href="settings.html" class="on">제어 · 설정</a><a href="history.html">이력 조회</a><span id="mode"></span></nav>
+<main>
+  <div class="row">
+    <div class="card">
+      <h3>제어 모드</h3>
+      <p id="modeText"></p>
+      <button onclick="setMode('AUTO')">자동 (AUTO)</button>
+      <button onclick="setMode('MANUAL')">수동 (MANUAL)</button>
+      <h3 style="margin-top:20px">장치 수동 제어 (수동 모드에서만)</h3>
+      <table id="devices"></table>
+      <h3 style="margin-top:20px">상황 만들기 (시연용)</h3>
+      <button class="gray" onclick="scenario('HEATWAVE')">폭염</button>
+      <button class="gray" onclick="scenario('DROUGHT')">가뭄</button>
+      <button class="gray" onclick="scenario('COLD')">저온</button>
+      <button class="gray" onclick="scenario('HUMID')">다습</button>
+    </div>
+    <div class="card" style="flex:1.4">
+      <h3>기준값 설정 (토마토)</h3>
+      <table id="th"></table>
+      <p><button onclick="save()">저장</button> <button class="gray" onclick="reset()">기본값 복원</button></p>
+      <p class="small">하한이 상한보다 크거나 같으면 저장되지 않습니다. 저장하면 다음 측정부터 반영됩니다.</p>
+    </div>
+  </div>
+</main>
+<script>
+const NAMES = { FAN: "환기팬", HEATER: "히터", PUMP: "급수펌프", LED: "LED 보광등" };
+
+async function api(url, method, body) {
+  const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const data = await res.json();
+  if (data.ok === false) alert(data.error);
+  return data;
+}
+
+async function load() {
+  const d = await (await fetch("/api/sensors/latest")).json();
+  const auto = d.mode === "AUTO";
+  document.getElementById("mode").textContent = auto ? "자동 제어 ON" : "수동 모드";
+  document.getElementById("modeText").textContent = auto
+    ? "지금은 자동 모드입니다. 기준을 벗어나면 시스템이 장치를 켜고 끕니다."
+    : "지금은 수동 모드입니다. 아래 버튼으로 장치를 직접 켜고 끕니다.";
+  let html = "";
+  for (const id in d.devices) {
+    const on = d.devices[id];
+    html += `<tr><td>${NAMES[id]}</td><td class="${on ? "on" : "off"}">${on ? "ON" : "OFF"}</td>
+      <td><button ${auto ? "disabled class='gray'" : ""} onclick="toggle('${id}', ${on ? 0 : 1})">${on ? "끄기" : "켜기"}</button></td></tr>`;
+  }
+  document.getElementById("devices").innerHTML = html;
+}
+
+async function loadThresholds() {
+  const list = await (await fetch("/api/thresholds")).json();
+  let html = "<tr><th>항목</th><th>하한</th><th>상한</th><th>단위</th></tr>";
+  list.forEach(t => {
+    html += `<tr><td>${t.sensor_name}</td>
+      <td><input id="min_${t.sensor_key}" value="${t.min_value}"></td>
+      <td><input id="max_${t.sensor_key}" value="${t.max_value}"></td><td>${t.unit}</td></tr>`;
+  });
+  document.getElementById("th").innerHTML = html;
+}
+
+async function setMode(mode) { await api("/api/settings/mode", "PUT", { mode }); load(); }
+async function toggle(id, is_on) { await api("/api/devices/" + id, "PUT", { is_on }); load(); }
+async function scenario(s) { await api("/api/scenario", "POST", { scenario: s }); alert("다음 측정 때 적용됩니다."); }
+
+async function save() {
+  const keys = ["temperature", "humidity", "soil_moisture", "light"];
+  const items = keys.map(k => ({
+    sensor_key: k,
+    min_value: Number(document.getElementById("min_" + k).value),
+    max_value: Number(document.getElementById("max_" + k).value)
+  }));
+  if (items.some(i => isNaN(i.min_value) || isNaN(i.max_value))) { alert("숫자를 입력해 주세요."); return; }
+  const r = await api("/api/thresholds", "PUT", items);
+  if (r.ok) alert("저장했습니다.");
+}
+
+async function reset() { await api("/api/thresholds/reset", "POST", {}); loadThresholds(); }
+
+load(); loadThresholds();
+setInterval(load, 5000);
+</script>
+</body></html>

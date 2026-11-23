@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><title>AI 챗봇</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  #log { height: 460px; overflow-y: auto; background: #fafaf9; border: 1px solid #e6e8e6; padding: 10px 12px; }
+  .msg { max-width: 78%; padding: 8px 12px; margin: 8px 0; white-space: pre-wrap; line-height: 1.6; }
+  .user { margin-left: auto; background: #eef1ee; border: 1px solid #cfd3d0; }
+  .assistant { background: #fff; border-left: 3px solid #1f3b2c; }
+  .src { font-size: 12px; color: #555; margin-top: 6px; border-top: 1px dotted #cfd3d0; padding-top: 4px; }
+  #q { width: 80%; }
+</style></head>
+<body>
+<nav><b>스마트팜 환경 관리</b><a href="index.html">대시보드</a><a href="chat.html" class="on">AI 챗봇</a><a href="settings.html">제어 · 설정</a><a href="history.html">이력 조회</a><span id="mode"></span></nav>
+<main>
+  <div class="row">
+    <div class="card" style="flex:0 0 280px"><h3>지금 상태 (답변에 함께 들어감)</h3><table id="now"></table></div>
+    <div class="card">
+      <h3>AI 상담 (qwen2.5:3b)</h3>
+      <div id="log"></div>
+      <p>
+        <button class="gray" onclick="send('지금 환경 상태 요약해 줘')">지금 상태 요약</button>
+        <button class="gray" onclick="send('습도가 높으면 생기는 문제는?')">습도가 높으면?</button>
+        <button class="gray" onclick="send('물은 언제 줘야 해?')">물은 언제?</button>
+      </p>
+      <input id="q" placeholder="질문을 입력하세요 (Enter로 전송)">
+      <button onclick="send()">전송</button>
+    </div>
+  </div>
+</main>
+<script>
+// 브라우저마다 대화방 ID를 하나 만들어 둔다 (새로고침해도 대화 유지)
+let sid = localStorage.getItem("sid");
+if (!sid) { sid = "s-" + Date.now(); localStorage.setItem("sid", sid); }
+
+function add(role, text, sources) {
+  const div = document.createElement("div");
+  div.className = "msg " + role;
+  div.textContent = text;
+  if (sources && sources.length) {
+    const s = document.createElement("div");
+    s.className = "src";
+    s.textContent = "출처: " + sources.map(x => x.title + (x.page ? " p." + x.page : "")).join(", ");
+    div.appendChild(s);
+  }
+  const log = document.getElementById("log");
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+  return div;
+}
+
+async function send(text) {
+  const box = document.getElementById("q");
+  const question = text || box.value.trim();
+  if (!question) { alert("질문을 입력해 주세요."); return; }
+  box.value = "";
+  add("user", question);
+  const wait = add("assistant", "문서를 찾고 답변을 만드는 중...");
+  const res = await fetch("/api/chat", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: sid, question })
+  });
+  const data = await res.json();
+  wait.remove();
+  add("assistant", data.answer, data.sources);
+}
+
+document.getElementById("q").addEventListener("keydown", e => { if (e.key === "Enter") send(); });
+
+async function loadNow() {
+  const d = await (await fetch("/api/sensors/latest")).json();
+  document.getElementById("mode").textContent = d.mode === "AUTO" ? "자동 제어 ON" : "수동 모드";
+  if (!d.sensor) return;
+  let html = "";
+  for (const key in d.thresholds) html += `<tr><td>${d.thresholds[key].sensor_name}</td><td>${d.sensor[key]}${d.thresholds[key].unit}</td></tr>`;
+  const NAMES = { FAN: "환기팬", HEATER: "히터", PUMP: "급수펌프", LED: "LED 보광등" };
+  const on = Object.keys(d.devices).filter(k => d.devices[k]).map(k => NAMES[k]);
+  html += `<tr><td>켜진 장치</td><td>${on.length ? on.join(", ") : "없음"}</td></tr>`;
+  document.getElementById("now").innerHTML = html;
+}
+
+async function loadHistory() {   // 이전 대화 불러오기
+  const list = await (await fetch("/api/chat/history?session_id=" + sid)).json();
+  if (!list.length) add("assistant", "안녕하세요! 토마토 재배 환경에 대해 물어보세요.");
+  list.forEach(m => add(m.role, m.content, m.sources ? JSON.parse(m.sources) : null));
+}
+
+loadNow(); loadHistory();
+setInterval(loadNow, 5000);
+</script>
+</body></html>

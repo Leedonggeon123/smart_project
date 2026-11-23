@@ -1,0 +1,44 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: "맑은 고딕", "Malgun Gothic", sans-serif; background: #f4f4f2; color: #1d1d1d; font-size: 14px; }
+
+/* 상단 메뉴 */
+nav { background: #1f3b2c; color: #fff; display: flex; align-items: stretch; padding: 0 20px; height: 44px; }
+nav b { display: flex; align-items: center; font-size: 15px; margin-right: 28px; }
+nav a { display: flex; align-items: center; color: #c9d6cd; text-decoration: none; padding: 0 14px; border-bottom: 3px solid transparent; }
+nav a.on { color: #fff; font-weight: bold; border-bottom-color: #9fc9a4; }
+nav span { margin-left: auto; display: flex; align-items: center; font-size: 13px; color: #c9d6cd; }
+
+main { padding: 16px 20px; }
+h2 { margin: 0 0 12px; font-size: 18px; }
+
+/* 영역(패널): 둥근 모서리 · 그림자 없이 선으로만 구분 */
+.grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.card { background: #fff; border: 1px solid #cfd3d0; padding: 12px 14px; margin-bottom: 10px; }
+.card h3 { margin: -12px -14px 10px; padding: 7px 14px; font-size: 13px; color: #333; background: #f0f1ef; border-bottom: 1px solid #cfd3d0; }
+.card.WARNING { border-left: 4px solid #b42318; }
+.card.CAUTION { border-left: 4px solid #a15c00; }
+.card.NORMAL, .card.CAUTION, .card.WARNING { color: #1d1d1d; }
+.row { display: flex; gap: 10px; }
+.row > .card { flex: 1; }
+
+/* 숫자는 자릿수가 맞는 고정폭 글꼴 */
+.big { font-family: Consolas, "D2Coding", monospace; font-size: 32px; font-weight: bold; }
+.small { font-size: 12px; color: #666; }
+
+/* 상태는 배경 없이 글자색으로만 */
+.badge { font-size: 12px; font-weight: bold; margin-left: 4px; }
+.NORMAL, .RECOVER { color: #2f6b2f; }
+.CAUTION { color: #a15c00; }
+.WARNING { color: #b42318; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { background: #f0f1ef; text-align: left; padding: 6px 8px; border-bottom: 1px solid #cfd3d0; font-weight: bold; }
+td { padding: 6px 8px; border-bottom: 1px solid #e6e8e6; }
+
+button { background: #1f3b2c; color: #fff; border: 1px solid #1f3b2c; padding: 6px 12px; cursor: pointer; font-family: inherit; }
+button.gray { background: #fff; color: #1d1d1d; border: 1px solid #9aa09c; }
+button:disabled { background: #e6e8e6; color: #999; border-color: #cfd3d0; cursor: default; }
+input, select { padding: 5px 7px; border: 1px solid #9aa09c; width: 100px; font-family: inherit; }
+
+.on { color: #2f6b2f; font-weight: bold; }
+.off { color: #999; }

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><title>이력 조회</title>
+<link rel="stylesheet" href="style.css">
+<script src="chart.umd.js"></script></head>
+<body>
+<nav><b>스마트팜 환경 관리</b><a href="index.html">대시보드</a><a href="chat.html">AI 챗봇</a><a href="settings.html">제어 · 설정</a><a href="history.html" class="on">이력 조회</a><span id="mode"></span></nav>
+<main>
+  <h2>이력 조회
+    <select id="range" onchange="load()">
+      <option value="today">오늘</option><option value="24h" selected>최근 24시간</option><option value="7d">최근 7일</option>
+    </select>
+    <button class="gray" onclick="location.href='/api/history/csv?range=' + document.getElementById('range').value">CSV 다운로드</button>
+  </h2>
+  <div class="card"><canvas id="chart" height="80"></canvas></div>
+  <div class="row">
+    <div class="card"><h3>제어 기록</h3><table id="controls"></table></div>
+    <div class="card"><h3>경고 기록</h3><table id="alerts"></table></div>
+  </div>
+</main>
+<script>
+const NAMES = { FAN: "환기팬", HEATER: "히터", PUMP: "급수펌프", LED: "LED 보광등" };
+const LEVEL = { NORMAL: "정상", CAUTION: "주의", WARNING: "경고", RECOVER: "정상 복귀" };
+let chart;
+
+async function load() {
+  const range = document.getElementById("range").value;
+  const d = await (await fetch("/api/history?range=" + range)).json();
+
+  const labels = d.sensors.map(s => s.measured_at.slice(5, 16));
+  const sets = [
+    { label: "온도(℃)", data: d.sensors.map(s => s.temperature), borderColor: "#e0602f", pointRadius: 0 },
+    { label: "습도(%)", data: d.sensors.map(s => s.humidity), borderColor: "#2e9d57", pointRadius: 0 },
+    { label: "토양 수분(%)", data: d.sensors.map(s => s.soil_moisture), borderColor: "#2f80c0", pointRadius: 0 },
+  ];
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById("chart"), { type: "line", data: { labels, datasets: sets }, options: { animation: false } });
+
+  document.getElementById("controls").innerHTML = "<tr><th>시간</th><th>장치</th><th>동작</th><th>이유</th><th>방식</th></tr>" +
+    d.controls.map(c => `<tr><td>${c.created_at.slice(5, 16)}</td><td>${NAMES[c.device_id]}</td>
+      <td class="${c.action === "ON" ? "on" : "off"}">${c.action}</td><td>${c.reason}</td>
+      <td>${c.trigger_type === "AUTO" ? "자동" : "수동"}</td></tr>`).join("");
+
+  document.getElementById("alerts").innerHTML = "<tr><th>시간</th><th>등급</th><th>내용</th></tr>" +
+    d.alerts.map(a => `<tr><td>${a.created_at.slice(5, 16)}</td><td><span class="badge ${a.level}">${LEVEL[a.level]}</span></td>
+      <td>${a.message}</td></tr>`).join("");
+}
+
+async function loadMode() {
+  const d = await (await fetch("/api/sensors/latest")).json();
+  document.getElementById("mode").textContent = d.mode === "AUTO" ? "자동 제어 ON" : "수동 모드";
+}
+load(); loadMode();
+</script>
+</body></html>
